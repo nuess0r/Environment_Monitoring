@@ -1,0 +1,6 @@
+#
+# cron.d/log_dht_data -- schedules periodic data capturing from a combined
+#                        temperature and humidity sensor
+
+# m h dom mon dow user  command
+*/5 * * * * pi cd /home/pi/ && ./log_dht_data_and_warn.py

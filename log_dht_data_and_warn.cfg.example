@@ -1,0 +1,18 @@
+[settings]
+rrd_file = /home/pi/temp_humidity.rrd
+rrd_graphs = /home/pi/graphs/
+sensor_type = 11
+sensor_pin = 4
+node_name = 
+node_netaddress = localhost
+node_description = USE THIS TO IDENTIFIY THE POSITION OF THE NODE
+alarm_from_address = pi@environment_monitor
+alarm_to_addresses = <your address>@<your domain>
+smtp_server = smtp.gmail.com:587
+smtp_username = 
+smtp_password = 
+temperature_max = 26
+humidity_min = 35
+humidity_max = 65
+graph_width = 440
+graph_height = 180

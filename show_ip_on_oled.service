@@ -1,0 +1,10 @@
+[Unit]
+Description=Show IP address on OLED Display
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python /home/pi/show_ip_on_oled.py > /tmp/show_ip.log
+
+[Install]
+WantedBy=multi-user.target

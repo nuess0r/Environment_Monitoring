@@ -1,0 +1,10 @@
+[Unit]
+Description=Show IP address on LCD
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python /usr/local/bin/show_ip_on_lcd.py > /tmp/show_ip.log
+
+[Install]
+WantedBy=multi-user.target
