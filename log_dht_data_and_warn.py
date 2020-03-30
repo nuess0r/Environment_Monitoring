@@ -30,8 +30,13 @@ import fcntl
 import struct
 import smtplib
 import rrdtool
-
 import Adafruit_DHT
+from datetime import datetime
+from smbus import SMBus
+from PIL import ImageFont, ImageDraw, Image
+
+from OLED_SSD1306_128x64.oled import ssd1306
+
 
 def read_config(fname):
 
@@ -56,6 +61,8 @@ def get_ip_address(ifname):
     )[20:24])
 
 def poll_sensor(cfg):
+    # Try to grab a sensor reading.  Use the read_retry method which will retry up
+    # to 15 times to get a sensor reading (waiting 2 seconds between each retry).
     sensor = int(cfg.get('settings', 'sensor_type'))
     pin = int(cfg.get('settings', 'sensor_pin'))
     return Adafruit_DHT.read_retry(sensor, pin)
@@ -118,35 +125,84 @@ def main(argv=None):
     config_file = os.path.join(dirname, 'log_dht_data_and_warn.cfg')
     cfg = read_config(config_file)
 
+    # Define true type font to use
+    font_file = os.path.join(dirname, 'OLED_SSD1306_128x64', 'resources/FreeSans.ttf')
+
+    # Setup display
+    i2cbus = SMBus(1)           # 1 = Raspberry Pi but NOT early REV1 board
+    display = ssd1306(i2cbus)   # create oled object, nominating the correct I2C bus, default address
+
+    # "draw" onto this canvas, then call flush() to send the canvas contents to the hardware.
+    canvas = display.canvas
+
+    # Put border around the screen:
+    display.canvas.rectangle((0, 0, display.width-1, display.height-1), outline=1, fill=0)
+
+    # Write welcome message to display
+    font = ImageFont.truetype(font_file, 16)
+    canvas.text((6, 6), 'Data Logger for', font=font, fill=1)
+    canvas.text((6, 24), 'Temperature', font=font, fill=1)
+    canvas.text((6, 41), 'and Humidity', font=font, fill=1)
+    display.flush()
+    time.sleep(5)
+
+    # Load smaller font for the data display
+    font = ImageFont.truetype(font_file, 13)
+
+
+
     rrd_file = cfg.get('settings', 'rrd_file')
 
     if not os.path.isfile(rrd_file):
+        # create a round-robin database that expects every 5 s a value
+        # it creates max/min/average values for:
+        # * 10 min
+        # * 1 h
+        # * 24 h
+        # * 7 days
 	rrdtool.create(rrd_file,
-                       '--step', '300',
-		       'DS:temperature:GAUGE:600:-270:200',
-		       'DS:humidity:GAUGE:600:0:100',
-                       'RRA:AVERAGE:0.5:2:144',
-		       'RRA:AVERAGE:0.5:12:24',
-		       'RRA:AVERAGE:0.5:288:31',
-		       'RRA:AVERAGE:0.5:2016:52',
-                       'RRA:MAX:0.5:2:144',
-		       'RRA:MAX:0.5:12:24',
-		       'RRA:MAX:0.5:288:31',
-		       'RRA:MAX:0.5:2016:52',
-                       'RRA:MIN:0.5:2:144',
-                       'RRA:MIN:0.5:12:24',
-                       'RRA:MIN:0.5:288:31',
-                       'RRA:MIN:0.5:2016:52')
+                       '--step', '5',
+		       'DS:temperature:GAUGE:60:-270:200',
+		       'DS:humidity:GAUGE:60:0:100',
+                       'RRA:AVERAGE:0.5:120:288',
+		       'RRA:AVERAGE:0.5:720:48',
+		       'RRA:AVERAGE:0.5:17280:62',
+		       'RRA:AVERAGE:0.5:120960:104',
+                       'RRA:MAX:0.5:120:288',
+		       'RRA:MAX:0.5:720:48',
+		       'RRA:MAX:0.5:17280:62',
+		       'RRA:MAX:0.5:120960:104',
+                       'RRA:MIN:0.5:120:288',
+                       'RRA:MIN:0.5:720:48',
+                       'RRA:MIN:0.5:17280:62',
+                       'RRA:MIN:0.5:120960:104')
 
-    #Declare variables
-    humidity = None
-    temperature = None
-    
-    while humidity == None and temperature == None:
-        humidity, temperature = poll_sensor(cfg)
 
-    rrdtool.update(rrd_file, 'N:{0:0.1f}:{1:0.1f}'.format(temperature, humidity))
-    warning_test(humidity, temperature, cfg)
+    while(True):
+        humidity = None
+        temperature = None
+
+        while humidity == None and temperature == None:
+            humidity, temperature = poll_sensor(cfg)
+
+        rrdtool.update(rrd_file, 'N:{0:0.1f}:{1:0.1f}'.format(temperature, humidity))
+
+        warning_test(humidity, temperature, cfg)
+
+        dt = datetime.now()
+        display.canvas.rectangle((0, 0, display.width-1, display.height-1), outline=0, fill=0)
+        canvas.text((6, 4), dt.strftime("%d. %B %Y %H:%M"), font=font, fill=1)
+        # Note that sometimes you won't get a reading and
+        # the results will be null (because Linux can't
+        # guarantee the timing of calls to read the sensor).
+        # If this happens try again!
+        if humidity is not None and temperature is not None:
+            #print('Temp={0:0.1f}C  Humidity={1:0.1f}%'.format(temperature, humidity))
+            canvas.text((6, 30), 'Temperature {0:0.1f}C'.format(temperature), font=font, fill=1)
+            canvas.text((6, 46), 'Humidity {0:0.1f}%'.format(humidity), font=font, fill=1)
+        display.flush()
+
+        time.sleep(5)
 
 if __name__ == "__main__":
     sys.exit(main())

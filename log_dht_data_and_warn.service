@@ -1,0 +1,10 @@
+[Unit]
+Description=Show temerature and humidity on OLED Display
+
+[Service]
+Type=simple
+ExecStart=/home/pi/log_dht_data_and_warn.py &
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
